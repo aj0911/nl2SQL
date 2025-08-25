@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { Sequelize } from "sequelize";
+import pg from 'pg'
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,6 +17,7 @@ export async function POST(request: NextRequest) {
     // Create Sequelize instance
     const sequelize = new Sequelize({
       dialect: "postgres",
+      dialectModule: pg,
       host,
       port: Number.parseInt(port),
       username: user,

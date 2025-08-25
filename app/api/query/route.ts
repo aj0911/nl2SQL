@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Sequelize } from "sequelize";
+import pg from 'pg'
 
 type Column = {
   name: string;
@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
 
     const sequelize = new Sequelize({
       dialect: "postgres",
+      dialectModule: pg,
       host,
       port: Number.parseInt(port),
       username: user,
@@ -155,6 +156,7 @@ export async function GET(request: NextRequest) {
 
     const sequelize = new Sequelize({
       dialect: "postgres",
+      dialectModule: pg,
       host,
       port: Number.parseInt(port),
       username: user,

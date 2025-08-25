@@ -27,10 +27,10 @@ interface ConnectionForm {
 
 export default function ConnectPage() {
   const [form, setForm] = useState<ConnectionForm>({
-    host: "",
-    user: "",
-    password: "",
-    database: "",
+    host: "ep-old-river-adctltyl-pooler.c-2.us-east-1.aws.neon.tech",
+    user: "neondb_owner",
+    password: "npg_b3dhOXi1QcAs",
+    database: "neondb",
     port: "5432",
   });
   const [isLoading, setIsLoading] = useState(false);

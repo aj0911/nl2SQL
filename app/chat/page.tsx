@@ -61,8 +61,10 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const router = useRouter();
+  const [writing, setWriting] = useState<"Thinking" | "Fetching Schema" | "Executing Query" | "Generating"
+  >("Thinking");
   const ai = new GoogleGenAI({
-    apiKey: process.env.NEXT_PUBLIC_API_URL
+    apiKey: process.env.NEXT_PUBLIC_API_URL,
   });
   const config = {
     thinkingConfig: {
@@ -81,7 +83,8 @@ export default function ChatPage() {
           router.push("/connect");
           return;
         }
-
+        setWriting("Fetching Schema");
+        setIsLoading(true);
         const schemaResponse = await fetch("/api/schema", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -105,6 +108,9 @@ export default function ChatPage() {
           variant: "destructive",
         });
         router.push("/connect");
+      } finally {
+        setIsLoading(false);
+        setWriting("Thinking");
       }
     };
 
@@ -147,6 +153,8 @@ export default function ChatPage() {
       });
 
       const data = await response.json();
+
+      setWriting("Fetching Schema");
 
       if (response.ok) {
         // recieved datascheme
@@ -215,6 +223,7 @@ export default function ChatPage() {
           response.candidates[0].content &&
           response.candidates[0].content.parts
         ) {
+          setWriting("Executing Query");
           const res = JSON.parse(
             response.candidates[0].content.parts[0].text ||
               '{query: "No query is passed, it just a normal information"}'
@@ -225,6 +234,8 @@ export default function ChatPage() {
           });
           const results = await fetch(`/api/query?${params.toString()}`);
           const resp = await results.json();
+
+          setWriting("Generating");
 
           const aiModelResponse = await ai.models.generateContent({
             model,
@@ -292,6 +303,7 @@ export default function ChatPage() {
       };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
+      setWriting("Thinking");
       setIsLoading(false);
     }
   };
@@ -327,184 +339,188 @@ export default function ChatPage() {
           </div>
         </div>
       </header>
-
-      <div className="container mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-120px)]">
-        {/* Chat Section */}
-        <div className="lg:col-span-3 flex flex-col">
-          <Card className="flex-1 flex flex-col">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Bot className="w-5 h-5" />
-                <span>Chat with your Database</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex-1 flex flex-col space-y-4">
-              <ScrollArea className="flex-1 pr-4">
-                <div className="space-y-4">
-                  <AnimatePresence>
-                    {messages.map((message) => (
-                      <motion.div
-                        key={message.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        className={`flex ${
-                          message.type === "user"
-                            ? "justify-end"
-                            : "justify-start"
-                        }`}
-                      >
-                        <div
-                          className={`max-w-[80%] rounded-lg p-3 ${
-                            message.type === "user"
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted cursor-pointer hover:bg-muted/80 transition-colors"
-                          }`}
-                          onClick={() =>
-                            message.sql && setSelectedSql(message.sql)
-                          }
-                        >
-                          <div className="flex items-start space-x-2">
-                            {message.type === "user" ? (
-                              <User className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                            ) : (
-                              <Bot className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                            )}
-                            <div className="flex-1">
-                              <p className="text-sm">{message.content}</p>
-                              {message.sql && (
-                                <div className="mt-2 flex items-center text-xs opacity-70">
-                                  <Code className="w-3 h-3 mr-1" />
-                                  Click to view SQL
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                  {isLoading && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="flex justify-start"
-                    >
-                      <div className="bg-muted rounded-lg p-3 flex items-center space-x-2">
-                        <Bot className="w-4 h-4" />
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span className="text-sm">Thinking...</span>
-                      </div>
-                    </motion.div>
-                  )}
-                </div>
-                <div ref={messagesEndRef} />
-              </ScrollArea>
-
-              <div className="flex space-x-2">
-                <Input
-                  placeholder="Ask a question about your database..."
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  disabled={isLoading}
-                  className="flex-1"
-                />
-                <Button
-                  onClick={sendMessage}
-                  disabled={isLoading || !input.trim()}
-                  size="icon"
-                >
-                  {isLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Send className="w-4 h-4" />
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Schema Section */}
-        <div className="lg:col-span-1">
-          <Card className="h-full">
-            <Collapsible open={isSchemaOpen} onOpenChange={setIsSchemaOpen}>
-              <CollapsibleTrigger asChild>
-                <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-                  <CardTitle className="flex items-center justify-between text-base">
-                    <div className="flex items-center space-x-2">
-                      <Database className="w-4 h-4" />
-                      <span>Database Schema</span>
-                    </div>
-                    {isSchemaOpen ? (
-                      <ChevronDown className="w-4 h-4" />
-                    ) : (
-                      <ChevronRight className="w-4 h-4" />
-                    )}
+          <div className="container mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-120px)]">
+            {/* Chat Section */}
+            <div className="lg:col-span-3 flex flex-col">
+              <Card className="flex-1 flex flex-col">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Bot className="w-5 h-5" />
+                    <span>Chat with your Database</span>
                   </CardTitle>
                 </CardHeader>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <CardContent>
-                  <ScrollArea className="h-[calc(100vh-300px)]">
+                <CardContent className="flex-1 flex flex-col space-y-4">
+                  <ScrollArea className="flex-1 pr-4">
                     <div className="space-y-4">
-                      {schema.map((table) => (
-                        <motion.div
-                          key={table.name}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          className="border rounded-lg p-3"
-                        >
-                          <h4 className="font-medium text-sm mb-2">
-                            {table.name}
-                          </h4>
-                          <div className="space-y-1">
-                            {table.columns.map((column) => (
-                              <div
-                                key={column.name}
-                                className="text-xs flex justify-between items-center"
-                              >
-                                <span className="font-mono">{column.name}</span>
-                                <span className="text-muted-foreground">
-                                  {column.type}
-                                  {!column.nullable && " *"}
-                                </span>
+                      <AnimatePresence>
+                        {messages.map((message) => (
+                          <motion.div
+                            key={message.id}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -20 }}
+                            className={`flex ${
+                              message.type === "user"
+                                ? "justify-end"
+                                : "justify-start"
+                            }`}
+                          >
+                            <div
+                              className={`max-w-[80%] rounded-lg p-3 ${
+                                message.type === "user"
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-muted cursor-pointer hover:bg-muted/80 transition-colors"
+                              }`}
+                              onClick={() =>
+                                message.sql && setSelectedSql(message.sql)
+                              }
+                            >
+                              <div className="flex items-start space-x-2">
+                                {message.type === "user" ? (
+                                  <User className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                                ) : (
+                                  <Bot className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                                )}
+                                <div className="flex-1">
+                                  <p className="text-sm">{message.content}</p>
+                                  {message.sql && (
+                                    <div className="mt-2 flex items-center text-xs opacity-70">
+                                      <Code className="w-3 h-3 mr-1" />
+                                      Click to view SQL
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            ))}
+                            </div>
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
+                      {isLoading && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="flex justify-start"
+                        >
+                          <div className="bg-muted rounded-lg p-3 flex items-center space-x-2">
+                            <Bot className="w-4 h-4" />
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span className="text-sm">{writing}...</span>
                           </div>
                         </motion.div>
-                      ))}
-                      {schema.length === 0 && (
-                        <div className="text-center text-muted-foreground text-sm">
-                          No tables found
-                        </div>
                       )}
                     </div>
+                    <div ref={messagesEndRef} />
                   </ScrollArea>
-                </CardContent>
-              </CollapsibleContent>
-            </Collapsible>
-          </Card>
-        </div>
-      </div>
 
-      {/* SQL Dialog */}
-      <Dialog open={!!selectedSql} onOpenChange={() => setSelectedSql(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center space-x-2">
-              <Code className="w-5 h-5" />
-              <span>Generated SQL Query</span>
-            </DialogTitle>
-          </DialogHeader>
-          <div className="bg-muted rounded-lg p-4">
-            <pre className="text-sm font-mono whitespace-pre-wrap overflow-x-auto">
-              {selectedSql}
-            </pre>
+                  <div className="flex space-x-2">
+                    <Input
+                      placeholder="Ask a question about your database..."
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      disabled={isLoading}
+                      className="flex-1"
+                    />
+                    <Button
+                      onClick={sendMessage}
+                      disabled={isLoading || !input.trim()}
+                      size="icon"
+                    >
+                      {isLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Schema Section */}
+            <div className="lg:col-span-1">
+              <Card className="h-full">
+                <Collapsible open={isSchemaOpen} onOpenChange={setIsSchemaOpen}>
+                  <CollapsibleTrigger asChild>
+                    <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                      <CardTitle className="flex items-center justify-between text-base">
+                        <div className="flex items-center space-x-2">
+                          <Database className="w-4 h-4" />
+                          <span>Database Schema</span>
+                        </div>
+                        {isSchemaOpen ? (
+                          <ChevronDown className="w-4 h-4" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4" />
+                        )}
+                      </CardTitle>
+                    </CardHeader>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <CardContent>
+                      <ScrollArea className="h-[calc(100vh-300px)]">
+                        <div className="space-y-4">
+                          {schema.map((table) => (
+                            <motion.div
+                              key={table.name}
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              className="border rounded-lg p-3"
+                            >
+                              <h4 className="font-medium text-sm mb-2">
+                                {table.name}
+                              </h4>
+                              <div className="space-y-1">
+                                {table.columns.map((column) => (
+                                  <div
+                                    key={column.name}
+                                    className="text-xs flex justify-between items-center"
+                                  >
+                                    <span className="font-mono">
+                                      {column.name}
+                                    </span>
+                                    <span className="text-muted-foreground">
+                                      {column.type}
+                                      {!column.nullable && " *"}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </motion.div>
+                          ))}
+                          {schema.length === 0 && (
+                            <div className="text-center text-muted-foreground text-sm">
+                              No tables found
+                            </div>
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </CardContent>
+                  </CollapsibleContent>
+                </Collapsible>
+              </Card>
+            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+
+          {/* SQL Dialog */}
+          <Dialog
+            open={!!selectedSql}
+            onOpenChange={() => setSelectedSql(null)}
+          >
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle className="flex items-center space-x-2">
+                  <Code className="w-5 h-5" />
+                  <span>Generated SQL Query</span>
+                </DialogTitle>
+              </DialogHeader>
+              <div className="bg-muted rounded-lg p-4">
+                <pre className="text-sm font-mono whitespace-pre-wrap overflow-x-auto">
+                  {selectedSql}
+                </pre>
+              </div>
+            </DialogContent>
+          </Dialog>
     </div>
   );
 }
